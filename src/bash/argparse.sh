@@ -113,8 +113,6 @@ add_argumentFunc () {
         temp_names+=($1)
         shift
     done
-    echo "DEBUG `print_list temp_names`"
-    echo "DEBUG `print_map temp_arg`"
 
     # Determine type of argument (positional vs. optional) based on names
     [ "${#temp_names[@]}" -gt 0 ]
@@ -137,19 +135,25 @@ add_argumentFunc () {
             assertReturn "invalid option string '${n}': must start with a character '-'"
         done
 
-        # TODO: dest name is the first long-opt starting with --
+        # dest is the first long-opt starting with --
         if [ -z "${temp_arg[dest]}" ]; then
             local dest=${temp_names[0]}
             for n in "${temp_names[@]}"; do
+                if [[ "${n}" == --* ]]; then
+                    temp_arg[dest]="${n#*--}"
+                    break
+                fi
             done
         fi
+
+        # TODO: replace - with _ in dest
     fi
+    [[ "${temp_arg[dest]}" =~ ^[^0-9][a-zA-Z0-9_]*$ ]]
+    assertReturn "variable names cannot start with a digit and may only contain alphanumeric characters and underscores (_)"
 
-        
 
-
-    # Create a global object
-
+    echo "DEBUG `print_list temp_names`"
+    echo "DEBUG `print_map temp_arg`"
 }
 
 print_helpFunc () {
@@ -161,7 +165,7 @@ print_map () {
     declare -n currmap=${mapname}
     print_str="${mapname}=("
     for k in "${!currmap[@]}"; do
-        print_str+="[${k}]=${currmap[${k}]} "
+        print_str+="[${k}]=\"${currmap[${k}]}\" "
     done
     print_str+=")"
     echo "${print_str}"
@@ -176,6 +180,10 @@ print_list () {
     done
     print_str+=")"
     echo "${print_str}"
+}
+
+is_true () {
+    [[ "$1" =~ (TRUE|true|True|1) ]]
 }
 
 case ${ap_mode} in
