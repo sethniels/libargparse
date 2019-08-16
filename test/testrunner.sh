@@ -1,13 +1,23 @@
 #!/bin/bash
 #testrunner.sh
 
-pushd `dirname $0`
+#pushd `dirname $0`
+#
+## python argparse.ArgumentParser prog test
+#python myprogram.py --help
+#pushd ..
+#python test/myprogram.py --help
+#popd
+#
+#popd
 
-# python argparse.ArgumentParser prog test
-python myprogram.py --help
-pushd ..
-python test/myprogram.py --help
-popd
+./test/argparseTest.py > argparseTest_py.out
+./test/argparseTest.sh > argparseTest_sh.out
 
-popd
+if diff -q argparseTest_py.out argparseTest_sh.out; then
+    echo "Successful test"
+else
+    vimdiff argparseTest_py.out argparseTest_sh.out
+    echo "Unsuccessful test"
+fi
 

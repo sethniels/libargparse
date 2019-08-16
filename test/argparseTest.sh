@@ -3,26 +3,26 @@
 
 cd `dirname $0`
 argparse="../src/bash/argparse.sh"
+. ${argparse}
 
 echo "Start of argparseTest"
 
 # prog test
 echo "ArgumentParser prog test"
-. ${argparse} ArgumentParser --prog="myprogram"
-echo "Test terminated"; exit 1
-. ${argparse} print_help
+ArgumentParser parser --prog="myprogram"
+print_help parser
 
-
-. ${argparse} ArgumentParser --prog='myprogram'
-. ${argparse} add_argument '--foo', --help='foo of the %(prog)s program'
-. ${argparse} print_help
+ArgumentParser parser --prog='myprogram'
+add_argument parser '--foo' --help='foo of the %(prog) program'
+print_help parser
 
 # usage test
 echo "ArgumentParser usage test"
-. ${argparse} ArgumentParser --prog='PROG'
-. ${argparse} add_argument '--foo', --nargs='?' --help='foo help'
-. ${argparse} add_argument 'bar', --nargs='+' --help='bar help'
-. ${argparse} print_help
+ArgumentParser parser --prog='PROG'
+add_argument parser '--foo' --nargs='?' --help='foo help'
+add_argument parser 'bar' --nargs='+' --help='bar help'
+print_help parser
+echo "Test terminated"; exit 1
 
 . ${argparse} ArgumentParser --prog='PROG' --usage='%(prog)s [options]'
 . ${argparse} add_argument '--foo', --nargs='?' --help='foo help'
