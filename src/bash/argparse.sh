@@ -8,6 +8,7 @@
 #fi
 
 readonly MAX_INDENT=24
+readonly RIGHT_MARGIN=80
 
 ######################## main argparse functions ########################
 ArgumentParser () {
@@ -207,6 +208,73 @@ add_argument () {
     eval "${arg_var_name}[optstrs]=${opt_strings_name}"
 }
 
+parse_args () {
+    # @param parser_name: MUST be the first argument; is the value set by ArgumentParser
+    # @param ns_name: MUST be the second argument; is the name of the namespace that will contain the parsed arguments. If it is an empty string, parsed arguments will be set in the global scope (AP_GLOBAL_NS).
+    # @params: all remaining parameters will be parsed and assigned in the given namespace
+
+    # Create local variables
+    local parser_name="$1"
+    shift
+    is_valid_name "${parser_name}"
+    assertReturn "print_help: invalid parser name: ${parser_name}"
+
+    declare -n curr_parser="${parser_name}"
+    [ "${#curr_parser[@]}" -gt 0 ]
+    assertReturn "print_help: ${parser_name} is not a valid parser"
+
+    local ns_name="$2"
+    shift
+    if [ -z "${ns_name}" ]; then
+        ns_name=AP_GLOBAL_NS
+    fi
+    is_valid_name "${ns_name}"
+    assertReturn "print_help: invalid namespace name: ${ns_name}"
+
+    local posargs_name="${curr_parser[posargs]}"
+    local optargs_name="${curr_parser[optargs]}"
+    declare -n posargs="${posargs_name}"
+    declare -n optargs="${optargs_name}"
+
+    # Parse arguments
+    local curr_input
+    while [ "$#" -gt 0 ]; do
+        if [ -z "${curr_input}" ]; then
+            curr_input="$1"
+        fi
+        # Check for optional arguments
+        if [[ "${curr_input}" == -* ]]; then
+            for arg_name in "${optargs[@]}"; do
+                optstr=`find_optionstring ${arg_name} ${curr_input}`
+                if [ -z "${opstr}" ]; then
+                    continue
+                fi
+                # TODO: start here
+
+
+
+
+                declare -n arg="${arg_name}"
+                declare -n optstrs="${arg[optstrs]}"
+                for ostr in "${optstrs[@]}"; do
+                    if [[
+                    case "${ostr}" in
+                        --*)
+                            case "${curr_input}" in
+                                "${ostr}") ;;
+                                "${ostr}"=*) ;;
+                            esac
+                            ;;
+                        -*)
+                            ;;
+                    esac
+                done
+            done
+        fi
+    done
+
+}
+
 print_help () {
     # @param parser_name: MUST be the first argument; is the value set by ArgumentParser
 
@@ -225,21 +293,36 @@ print_help () {
     declare -n posargs="${posargs_name}"
     declare -n optargs="${optargs_name}"
 
-    local help_str="usage: ${curr_parser[prog]}"
+    local prog="${curr_parser[prog]}"
+    if [ -z "${prog}" ]; then
+        prog="`basename $0`"
+    fi
+    local help_str="usage: "
 
     # Print brief help
-    for arg in "${optargs[@]}"; do
-        help_str+=" `print_arg_help -b ${arg}`"
-    done
-    for arg in "${posargs[@]}"; do
-        help_str+=" `print_arg_help -b ${arg}`"
-    done
+    if [ -z "${curr_parser[usage]}" ]; then
+        help_str+="${prog}"
+        for arg in "${optargs[@]}"; do
+            help_str+=" `print_arg_help -b ${arg}`"
+        done
+        for arg in "${posargs[@]}"; do
+            help_str+=" `print_arg_help -b ${arg}`"
+        done
+    else
+        help_str+="${curr_parser[usage]}"
+    fi
     help_str+="\n\n"
+
+    # Add description
+    if [ ! -z "${curr_parser[description]}" ]; then
+        help_str+="${curr_parser[description]}"
+        help_str+="\n\n"
+    fi
 
     # Determine indentation
     local indent=0
     local tmp_str
-    local margin=80
+    local margin=${RIGHT_MARGIN}
     for arg in "${posargs[@]}"; do
         tmp_str="`print_arg_help -h ${arg}`"
         if [ "${#tmp_str}" -gt ${indent} ]; then
@@ -274,8 +357,14 @@ print_help () {
         help_str="${help_str%\\n}"
     fi
 
+    # Print epilog
+    if [ ! -z "${curr_parser[epilog]}" ]; then
+        help_str+="\n\n"
+        help_str+="${curr_parser[epilog]}"
+    fi
+
     # Perform string substitution
-    help_str="${help_str//%(prog)/${curr_parser[prog]}}"
+    help_str="${help_str//%(prog)/${prog}}"
 
     echo -e "${help_str}"
 }
@@ -305,7 +394,7 @@ print_arg_help () {
     local brief=0
     local half=0
     local full=0
-    local margin=80
+    local margin=${RIGHT_MARGIN}
     local indent=${MAX_INDENT}
     while [ "$#" -gt 0 ]; do
         while getopts "bhfm:i:" opt; do

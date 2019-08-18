@@ -22,32 +22,32 @@ ArgumentParser parser --prog='PROG'
 add_argument parser '--foo' --nargs='?' --help='foo help'
 add_argument parser 'bar' --nargs='+' --help='bar help'
 print_help parser
-echo "Test terminated"; exit 1
 
-. ${argparse} ArgumentParser --prog='PROG' --usage='%(prog)s [options]'
-. ${argparse} add_argument '--foo', --nargs='?' --help='foo help'
-. ${argparse} add_argument 'bar', --nargs='+' --help='bar help'
-. ${argparse} print_help
+ArgumentParser parser --prog='PROG' --usage='%(prog) [options]'
+add_argument parser '--foo' --nargs='?' --help='foo help'
+add_argument parser 'bar' --nargs='+' --help='bar help'
+print_help parser
 
 # description test
 echo "ArgumentParser description test"
-. ${argparse} ArgumentParser --description='A foo that bars'
-. ${argparse} print_help
+ArgumentParser parser --description='A foo that bars'
+print_help parser
 
 # epilog test
 echo "ArgumentParser epilog test"
-. ${argparse} ArgumentParser --description='A foo that bars' --epilog="And that's how you'd foo a bar"
-. ${argparse} print_help
+ArgumentParser parser --description='A foo that bars' --epilog="And that's how you'd foo a bar"
+print_help parser 
 
 # version test
 # Which do we support?
 
 # prefix_chars test
 echo "ArgumentParser prefix_chars test"
-. ${argparse} ArgumentParser --prog='PROG' --prefix_chars='-+'
-. ${argparse} add_argument '+f'
-. ${argparse} add_argument '++bar'
-echo parser.parse_args('+f X ++bar Y'.split()
+ArgumentParser parser --prog='PROG' --prefix_chars='-+'
+add_argument parser '+f'
+add_argument parser '++bar'
+echo parse_args parser +f X ++bar Y
+echo "Test terminated"; exit 1
 
 # fromfile_prefix_chars test
 echo "ArgumentParser fromfile_prefix_chars test"

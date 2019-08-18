@@ -38,7 +38,6 @@ parser = argparse.ArgumentParser(prog='PROG')
 parser.add_argument('--foo', nargs='?', help='foo help')
 parser.add_argument('bar', nargs='+', help='bar help')
 parser.print_help()
-print "Test terminated"; raise SystemExit(0)
 
 parser = argparse.ArgumentParser(prog='PROG', usage='%(prog)s [options]')
 parser.add_argument('--foo', nargs='?', help='foo help')
@@ -65,6 +64,7 @@ parser = argparse.ArgumentParser(prog='PROG', prefix_chars='-+')
 parser.add_argument('+f')
 parser.add_argument('++bar')
 print parser.parse_args('+f X ++bar Y'.split())
+print "Test terminated"; raise SystemExit(1)
 
 # fromfile_prefix_chars test
 print "ArgumentParser fromfile_prefix_chars test"

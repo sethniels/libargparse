@@ -13,6 +13,7 @@
 
 ./test/argparseTest.py > argparseTest_py.out
 ./test/argparseTest.sh > argparseTest_sh.out
+sed -i 's/\.py/.sh/g' argparseTest_py.out
 
 if diff -q argparseTest_py.out argparseTest_sh.out; then
     echo "Successful test"
