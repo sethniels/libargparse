@@ -2,25 +2,38 @@
 #argparse.sh
 
 ## Get script name
-#AP_SCRIPT_BNAME=`basename ${BASH_SOURCE}`
-#if [ "${AP_SCRIPT_BNAME}" == "bash" ]; then
-#    AP_SCRIPT_BNAME="argparse"
-#fi
+AP_SCRIPT_BNAME=`basename ${BASH_SOURCE}`
+if [ "${AP_SCRIPT_BNAME}" == "bash" ]; then
+    AP_IS_SOURCED=1
+    AP_SCRIPT_BNAME="argparse"
+    ARCHSCRIPT_ARGS=("$0" "$@")
+fi
 
+# argparse constants (APC)
+readonly APC_SUPPRESS="==SUPPRESS=="
+readonly APC_OPTIONAL="?"
+readonly APC_ZERO_OR_MORE="*"
+readonly APC_ONE_OR_MORE="+"
+readonly APC_PARSER="A..."
+readonly APC_REMAINDER="..."
+readonly APC__UNRECOGNIZED_ARGS_ATTR="_unrecognized_args"
 readonly MAX_INDENT=24
 readonly RIGHT_MARGIN=80
 
 ######################## main argparse functions ########################
 ArgumentParser () {
     # @param parser_name: MUST be the first argument
-    # @param --prog: set the name of the program (default: to `basename $0`)
-    # @param --usage: description of the program usage (default: generated based on arguments added)
-    # @param --description: text to display before the argument help (default: "")
-    # @param --epilog=None: text to display after the argument help (default: "")
-    # @param --prefix_chars: set of characters that prefix optional arguments (default: "-")
-    # @param --fromfile_prefix_chars: set characters that prefix files from which to read additional arguments
-    # @param --argument_default: global default value for arguments (default: "")
-    # @param --add_help: adds a help argument automatically to the parser (default: "true")
+    # @param --prog: the name of the program (default: to `basename $0`)
+    # @param --usage: a usage message (default: generated based on arguments added)
+    # @param --description: a description of what the program does (default: "")
+    # @param --epilog: text following the argument descriptions (default: "")
+    # @param --parents: parsers whose arguments should be copied into this one
+    # @param --formatter_class: HelpFormatter class for printing help messages
+    # @param --prefix_chars: characters that prefix optional arguments (default: "-")
+    # @param --fromfile_prefix_chars: characters that prefix files containing additional arguments
+    # @param --argument_default: the default value for all arguments (default: "")
+    # @param --conflict_handler: string indicating how to handle conflicts
+    # @param --add_help: add a -h/-help option (default: "true")
 
     # Set up parser names
     local parser_name="$1"
@@ -39,41 +52,66 @@ ArgumentParser () {
     declare -n curr_parser=${parser_name}
     curr_parser[posargs]=${posargs_name}
     curr_parser[optargs]=${optargs_name}
+    curr_parser[formatter_class]=HelpFormatter
+    curr_parser[prefix_chars]="-"
+    curr_parser[conflict_handler]="error"
+    curr_parser[add_help]="true"
+    curr_parser[convert_arg_line_func]=convert_arg_line_to_args
 
     # Parse ArgumentParser args
     local key
     while [ "$#" -gt 0 ]; do
-        currarg="$1"
-        case "${currarg}" in
+        curr_input="$1"
+        case "${curr_input}" in
             --*)
-                currarg=${currarg#--*}
-                case "${currarg}" in
+                curr_input=${curr_input#--*}
+                case "${curr_input}" in
                     # Fallthrough is intentional
-                    prog|usage|description|epilog|prefix_chars) ;&
-                    fromfile_prefix_chars|argument_default|add_help)
-                        curr_parser[${currarg}]="$2"
+                    prog|usage|description|epilog|version|parents) ;&
+                    formatter_class|prefix_chars|fromfile_prefix_chars) ;&
+                    argument_default|conflict_handler|add_help)
+                        curr_parser[${curr_input}]="$2"
                         shift
                         ;;
-                    prog=*|usage=*|description=*|epilog=*|prefix_chars=*) ;&
-                    fromfile_prefix_chars=*|argument_default=*|add_help=*)
-                        key=${currarg%=*}
-                        curr_parser[${key}]=${currarg#*=}
+                    prog=*|usage=*|description=*|epilog=*|version=*) ;&
+                    parents=*|formatter_class=*|prefix_chars=*) ;&
+                    fromfile_prefix_chars=*|argument_default=*) ;&
+                    conflict_handler=*|add_help=*)
+                        key=${curr_input%=*}
+                        curr_parser[${key}]=${curr_input#*=}
                         ;;
                     *)
-                        false; assertReturn "ArgumentParser: unexpected argument: ${currarg%=*}"
+                        false; assertReturn "ArgumentParser: unexpected argument: ${curr_input%=*}"
                         ;;
                 esac
                 ;;
             *)
-                false; assertReturn "ArgumentParser: unexpected argument: ${currarg%=*}"
+                false; assertReturn "ArgumentParser: unexpected argument: ${curr_input%=*}"
                 ;;
         esac
         shift
     done
 
-    # Add help arg
-    add_argument ${parser_name} "-h" "--help" --action="help"\
-        --help="show this help message and exit"
+    if [ -z "${curr_parser[prog]}" ]; then
+        curr_parser[prog]="${ARCHSCRIPT_ARGS[0]}"
+    fi
+
+    def_prefix="${curr_parser[prefix_chars]:0:1}"
+    if is_true "${curr_parser[add_help]}"; then
+        add_argument ${parser_name} "${def_prefix}h"\
+            "${def_prefix}${def_prefix}help" --action="help"\
+            --default="${APC_SUPPRESS}"\
+            --help="show this help message and exit"
+    fi
+    if [ ! -z "${curr_parser[version]}"]; then
+        print_warning "The \"version\" argument to ArgumentParser is "\
+            "deprecated. Please use \"add_argument(..., action='version', "\
+            "version=\"N\", ...)\" instead"
+        add_argument ${parser_name} "${def_prefix}+v"\
+            "${def_prefix}${def_prefix}version" --action="version"\
+            --default="${APC_SUPPRESS}" --version="${curr_parser[version]}"\
+            --help="show program's version number and exit"
+    fi
 }
 
 add_argument () {
@@ -107,24 +145,24 @@ add_argument () {
 
     # Parse all inputs
     while [ $# -gt 0 ]; do
-        currarg=$1
-        case "${currarg}" in
+        curr_input=$1
+        case "${curr_input}" in
             --*)
-                currarg=${currarg#--*}
-                case "${currarg}" in
+                curr_input=${curr_input#--*}
+                case "${curr_input}" in
                     action|nargs|const|default|type|required|help|metavar|dest)
                         if [ -z "${2}" ] || [[ "${2}" == -* ]]; then
-                            curr_names+=(--${currarg})
+                            curr_names+=(--${curr_input})
                         else
-                            curr_arg[${currarg}]=${2}
+                            curr_arg[${curr_input}]=${2}
                             shift
                         fi
                         ;;
                     # Fallthrough is intentional
                     action=*|nargs=*|const=*|default=*|type=*|required=*) ;&
                     help=*|metavar=*|dest)
-                        key=${currarg%=*}
-                        curr_arg[${key}]=${currarg#*=}
+                        key=${curr_input%=*}
+                        curr_arg[${key}]=${curr_input#*=}
                         ;;
                     choices)
                         unset temp_choices
@@ -136,53 +174,154 @@ add_argument () {
                         IFS="," read -ra temp_choices <<< "${2#=*}"
                         ;;
                     *)
-                        curr_names+=(--${currarg}) ;;
+                        curr_names+=(--${curr_input}) ;;
                 esac
                 ;;
             *)
-                curr_names+=(${currarg})
+                curr_names+=(${curr_input})
                 ;;
         esac
         shift
     done
 
-    # Determine type of argument (positional vs. optional) based on names
-    [ "${#curr_names[@]}" -gt 0 ]
-    assertReturn "add_argument requires at least one name or flag"
-
-    # If number of names is 1 and doesn't start with -, it's positional;
-    # otherwise, it's optional
-    if [ "${#curr_names[@]}" -eq 1 ] && [[ "${curr_names[0]}" != -* ]]; then
-        # Some error checking
-        [ -z "${curr_arg[dest]}" ]
+    # Distinguish between positional and optional arguments
+    local option_strings=()
+    local chars="${curr_parser[prefix_chars]}"
+    if [ "${#curr_names[@]}" == 0 ] || ([ "${#curr_names[@]}" == 1 ] &&\
+            ! find_in "${curr_names[0]:0:1}" "${chars}"); then
+        # This is a positional argument
+        [ "${#curr_names[@]}" != 0 ] || [ -z "${curr_arg[dest]}" ]
         assertReturn "dest supplied twice for positional argument"
+
+        # make sure required is not specified
         [ -z "${curr_arg[required]}" ]
         assertReturn "'required' is an invalid argument for positionals"
 
-        curr_arg[dest]="${curr_names[0]}"
+        # mark positional arguments as required if at least one is
+        # always required
+        if ! find_in "${curr_arg[nargs]}" APC_OPTIONAL APC_ZERO_OR_MORE; then
+            curr_arg[required]=True
+        fi
+        if [ "${curr_arg[nargs]}" == "${APC_ZERO_OR_MORE}" ] &&\
+            [ -z "${curr_arg[default]}" ]; then
+            curr_arg[required]=True
+        fi
+
+        if [ -z "${curr_arg[dest]}" ]; then
+            curr_arg[dest]="${curr_names[0]}"
+        fi
         unset curr_names[0]
         args_list_name="${curr_parser[posargs]}"
     else
-        # Some error checking
-        for n in "${curr_names[@]}"; do
-            [[ "${n}" == -* ]]
-            assertReturn "invalid option string '${n}': must start with a"\
-                "character '-'"
+        # This is an optional argument
+        # error on strings that don't start with an appropriate prefix
+        local long_option_string
+        for option_string in "${curr_names[@]}"; do
+            find_in "${option_string:0:1}" "${chars}"
+            assertReturn "invalid option string '${option_string}': must start"\
+                "with a character '${chars}'"
+
+            # strings starting with two prefix characters are long options
+            option_strings+=("${option_string}")
+            if find_in "${option_string:0:1}" "${chars}" &&\
+                [ "${#option_string}" -gt 1 ] &&\
+                    find_in "${option_string:1:1}" "${chars}" &&\
+                        [ -z "${long_option_string}" ]; then
+                long_option_string="${option_string}"
+            fi
         done
 
-        # dest is the first long-opt starting with --
-        if [ -z "${curr_arg[dest]}" ]; then
-            local dest=${curr_names[0]}
-            for n in "${curr_names[@]}"; do
-                if [[ "${n}" == --* ]]; then
-                    dest="${n}"
-                    break
-                fi
-            done
+        # infer destination, '--foo-bar' -> 'foo_bar' and '-x' -> 'x'
+        local dest="${curr_arg[dest]}" 
+        if [ -z "${dest}" ]; then
+            local dest_option_string="${option_strings[0]}"
+            if [ ! -z "${long_option_strings}" ]; then
+                dest_option_string="${long_option_string}"
+            fi
+            dest="${dest_option_string}"
+            local prefix="${dest:0:1}"
+            dest="`echo ${dest} | sed \"s/^${prefix}*//\"`"
+            curr_arg[dest]=
+            [ ! -z "${dest}" ]
+            assertReturn "dest= is required for options like '${option_string}'"
+            curr_arg[dest]="${dest}"
         fi
-        curr_arg[dest]=`echo ${dest} | sed 's/^-*//'`
+
+        # Make sure there is no option string conflicts
+        check_duplicate_optstr "${parser_name}" "${curr_names[@]}"
+
         args_list_name="${curr_parser[optargs]}"
     fi
+    
+    # Determine the action
+    local action="${curr_arg[action]}"
+    if [ -z "${action}" ]; then
+        action=store
+    fi
+    case "${action}" in
+        store|append)
+            if [ "${action}" == store ]; then
+                errmsg=("nargs for store actions must be > 0; if you" \
+                    "have nothing to store, actions such as store" \
+                    "true or store const may be more appropriate")
+            else
+                errmsg=("nargs for append actions must be > 0; if arg strings" \
+                    "are not supplying the value to append, the append const" \
+                    "action may be more appropriate")
+            fi
+            [ "${curr_arg[nargs]}" != 0 ]
+            assertReturn "${errmsg[@]}"
+
+            [ -z "${curr_arg[const]}" ] ||\
+                [ "${curr_arg[nargs]}" == "${APC_OPTIONAL}" ]
+            assertReturn "nargs must be '${APC_OPTIONAL}' to supply const"
+            ;;
+        store_const|store_true|store_false|append_const|count|help|version)
+            req_params=()
+            bad_params=(nargs choices)
+            if [ "${action}" == store_const ]; then
+                req_params+=(const)
+            elif [ "${action}" == append_const ]; then
+                req_params+=(const)
+                bad_params+=(default)
+            elif [ "${action}" == count ]; then
+                bad_params+=(const type)
+                if [ ! -z "${curr_arg[default]}" ]; then
+                    is_integer "${curr_arg[default]}" 
+                    assertReturn "for action 'count', default must be an"\
+                        "integer"
+                fi
+            else
+                bad_params+=(const)
+                if [ -z "${curr_arg[default]}" ]; then
+                    if [ "${action}" == store_true ]; then
+                        curr_arg[default]="False"
+                    else
+                        curr_arg[default]="True"
+                    fi
+                fi
+            fi
+
+            if [ "${action}" == version ]; then
+                req_params+=(version)
+            else
+                bad_params+=(version)
+            fi
+
+            for param in "${req_params[@]}"; do
+                [ ! -z "${curr_arg[${param}]}" ]
+                assertReturn "action '${action}' requires '${param}'"
+            done
+
+            for param in "${bad_params[@]}"; do
+                [ -z "${curr_arg[${param}]}" ]
+                assertReturn "got an unexpected keyword argument '${param}'"
+            done
+            curr_arg[nargs]=0
+            ;;
+        *)
+            false; assertReturn "unknown action \"${action}\"" ;;
+    esac
 
     # Replace - with _ in dest and check name validity
     curr_arg[dest]=${curr_arg[dest]//-/_}
@@ -201,21 +340,40 @@ add_argument () {
     eval "${arg_var_name}=`print_map curr_arg`"
 
     # Create a list of OPTS strings
-    opt_strings_name=${arg_var_name}_OPTS
+    opt_strings_name=${arg_var_name}_OPTSTRS
     unset ${opt_strings_name}
     declare -ag ${opt_strings_name}
-    eval "${opt_strings_name}=`print_list curr_names`"
-    eval "${arg_var_name}[optstrs]=${opt_strings_name}"
+    declare -n opt_strings=${opt_strings_name}
+    opt_strings=("${option_strings[@]}")
+    arg_var[optstrs]=${opt_strings_name}
 }
 
 parse_args () {
     # @param parser_name: MUST be the first argument; is the value set by ArgumentParser
-    # @param ns_name: MUST be the second argument; is the name of the namespace that will contain the parsed arguments. If it is an empty string, parsed arguments will be set in the global scope (AP_GLOBAL_NS).
-    # @params: all remaining parameters will be parsed and assigned in the given namespace
+    # @param namespace_name: MUST be the second argument; is the name of the namespace that will contain the parsed arguments. If it is an empty string, parsed arguments will be set in the global scope (AP_GLOBAL_NS).
+    # @params: all remaining parameters will be parsed and assigned in the given namespace. If left blank then the command line argument will be used (i.e. $@)
 
     # Create local variables
     local parser_name="$1"
-    shift
+    local namespace_name="$2"
+    shift 2
+    if [ -z "${namespace_name}" ]; then
+        namespace_name=AP_GLOBAL_NS
+    fi
+    argv=(`parse_known_args "${parser_name}" "${namespace_name}" "$@"`)
+
+    [ "${#argv[@]}" -le 0 ]
+    assertReturn "unrecognized arguments: ${argv[@]}"
+}
+
+parse_known_args () {
+    # Similar to parse_args; however, will not raise an error if any arguments are left unparsed
+    # @param parser_name: MUST be the first argument; is the value set by ArgumentParser
+    # @param namespace_name: MUST be the second argument; is the name of the namespace that will contain the parsed arguments. If it is an empty string, parsed arguments will be set in the global scope (AP_GLOBAL_NS).
+    # @params: all remaining parameters will be parsed and assigned in the given namespace. If left blank then the command line argument will be used (i.e. $@)
+
+    # Create local variables
+    local parser_name="$1"
     is_valid_name "${parser_name}"
     assertReturn "print_help: invalid parser name: ${parser_name}"
 
@@ -223,54 +381,70 @@ parse_args () {
     [ "${#curr_parser[@]}" -gt 0 ]
     assertReturn "print_help: ${parser_name} is not a valid parser"
 
-    local ns_name="$2"
-    shift
-    if [ -z "${ns_name}" ]; then
-        ns_name=AP_GLOBAL_NS
+    local namespace_name="$2"
+    shift 2
+    if [ -z "${namespace_name}" ]; then
+        namespace_name=AP_GLOBAL_NS
     fi
-    is_valid_name "${ns_name}"
-    assertReturn "print_help: invalid namespace name: ${ns_name}"
+    is_valid_name "${namespace_name}"
+    assertReturn "print_help: invalid namespace name: ${namespace_name}"
+
+    unset ${namespace_name}
+    declare -Ag ${namespace_name}
+    declare -n curr_ns="${namespace_name}"
 
     local posargs_name="${curr_parser[posargs]}"
     local optargs_name="${curr_parser[optargs]}"
     declare -n posargs="${posargs_name}"
     declare -n optargs="${optargs_name}"
 
+    # Set any default values
+    allargs=("${posargs[@]}")
+    allargs+=("${optargs[@]}")
+    for arg_name in "${allargs[@]}"; do
+        declare -n arg=${arg_name}
+        if [ ! -z "${arg[default]}" ]; then
+            curr_ns[${arg[dest]}]="${arg[default]}"
+        fi
+    done
+
+    # replace arg strings that are file references
+    local args_from_file=("$@")
+    if [ ! -z "${curr_parser[fromfile_prefix_chars]}" ]; then
+        _read_args_from_files ${parser_name} args_from_file "${args[@]}"
+    fi
+
     # Parse arguments
-    local curr_input
+    _
+    local curr_input arg_name action
+    local unrecognized_opts=()
+    local posarg_i=0
+    local num_posargs="${#posargs[@]}"
     while [ "$#" -gt 0 ]; do
         if [ -z "${curr_input}" ]; then
             curr_input="$1"
         fi
-        # Check for optional arguments
-        if [[ "${curr_input}" == -* ]]; then
-            for arg_name in "${optargs[@]}"; do
-                optstr=`find_optionstring ${arg_name} ${curr_input}`
-                if [ -z "${opstr}" ]; then
-                    continue
-                fi
-                # TODO: start here
 
-
-
-
-                declare -n arg="${arg_name}"
-                declare -n optstrs="${arg[optstrs]}"
-                for ostr in "${optstrs[@]}"; do
-                    if [[
-                    case "${ostr}" in
-                        --*)
-                            case "${curr_input}" in
-                                "${ostr}") ;;
-                                "${ostr}"=*) ;;
-                            esac
-                            ;;
-                        -*)
-                            ;;
-                    esac
-                done
-            done
+        # Check for positional arguments
+        if [[ "${curr_input}" != -* ]]; then
+            arg_name="${posargs[${posarg_i}]}"
+            declare -n arg="${arg_name}"
+            action="${arg[action]}"
         fi
+
+        # Check for optional arguments
+        for arg_name in "${optargs[@]}"; do
+            optstr=`find_optionstring ${arg_name} ${curr_input}`
+            if [ -z "${opstr}" ]; then
+                unrecognized_opts+=("${curr_input}")
+                curr_input=""
+                shift
+                continue
+            fi
+
+            # TODO: start here
+
+        done
     done
 
 }
@@ -379,6 +553,41 @@ assertReturn () {
         echo "ERROR: ${errmsg}"
         exit 1
     fi
+}
+
+check_duplicate_optstr () {
+    # Checks the option strings for all options for duplicate option strings
+    # @param parser_name: MUST be the first argument; is the value set by ArgumentParser
+    # @params curr_optstr: a list of options strings to check against the
+    #   current optional arguments
+
+    # Local variables
+    local parser_name="$1"
+    shift
+    local curr_optstr="$@"
+    declare -n curr_parser="${parser_name}"
+    local optargs_name="${curr_parser[optargs]}"
+    declare -n optargs="${optargs_name}"
+
+    # Loop over current optargs
+    local arg_name ostr costr
+    for arg_name in "${optargs[@]}"; do
+        declare -n arg="${arg_name}"
+        optstrs_name=${arg[optstrs]}
+        declare -n optstrs=${optstrs_name}
+        for ostr in "${optstrs[@]}"; do
+            for costr in "${curr_optstr[@]}"; do
+                if [ "${ostr}" == "${costr}" ]; then
+                    all_ostrs="${opstrs[@]}"
+                    all_ostrs="${all_ostrs// /\/}"
+                    false
+                    assertReturn "argument ${all_ostrs}: conflicting option string(s): ${costr}"
+                fi
+            done
+        done
+    done
+    
+    return 0
 }
 
 print_arg_help () {
@@ -516,9 +725,9 @@ print_map () {
     echo "${print_str}"
 }
 
-print_list () {
-    # Prints a map (associative array) such that it can be used to initialize
-    # another array with the same output
+print_array () {
+    # Prints an array such that it can be used to initialize another array with
+    # the same output
     listname=$1
     declare -n currlist=${listname}
     print_str="("
@@ -534,8 +743,132 @@ is_true () {
     [[ "$1" =~ (TRUE|true|True|1) ]]
 }
 
+is_false () {
+    # Checks input string for variations of "false"
+    [[ "$1" =~ (FALSE|false|False|0) ]]
+}
+
+is_integer () {
+    # Checks that the input is an integer
+    int_ut="$1"
+    [[ "${int_ut}" =~ ^-?[0-9]+$ ]]
+}
+
 is_valid_name () {
+    # Checks that the input is a valid variable name, i.e. only alphanumeric and
+    # underscores, but can't start with a digit
     local name_under_test="$1"
     [[ "${name_under_test}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]
+}
+
+find_in () {
+    # Find a substring in another string or find an exact string in an array
+    # of strings
+    #
+    # @param item: the string to look for
+    # @param items: the string or array in which to look for item
+    # @return: 0 if found or 1 if not
+    local item="$1"
+    shift
+    local items=("$@")
+    if [ "${#items[@]}" -eq 1 ]; then
+        # Treat it as a single string
+        if [[ "${items[0]}" =~ "${item}" ]]; then
+            return 0
+        fi
+    else
+        # Find it in the array
+        local i
+        for i in "${items[@]}"; do
+            if [ "${i}" == "${item}" ]; then
+                return 0
+            fi
+        done
+    fi
+
+    return 1
+}
+
+find_optionstring () {
+    local arg_name="$1"
+    local curr_input="$2"
+
+    declare -n arg="${arg_name}"
+    declare -n optstrs="${arg[optstrs]}"
+    local action="${arg[action]}"
+    local nargs="${arg[nargs]}"
+    local found=0
+    for ostr in "${optstrs[@]}"; do
+        if [ "${curr_input}" == "${ostr}" ]; then
+            # Exact match
+            found=1
+        elif [[ "${curr_input}" == "${ostr}=*" ]]; then
+            # Match with explicit argument
+            [ "${nargs}" != 0 ]
+            assertReturn "error: argument ${ostr}: ignored"\
+                "explicit argument '${curr_input#*=}'"
+            found=1
+        elif [[ ! "${ostr}" == --* ]] && [[ "${ostr}" == -* ]] &&\
+                [[ "${curr_input}" == "${ostr}"* ]]; then
+            found=1
+        fi
+        
+        if [ "${found}" == 1 ]; then
+            echo "${ostr}"
+            return 0
+        fi
+    done
+
+    # If we reach this point, this is an unrecognized option
+    return 1
+}
+
+_read_args_from_files () {
+    local parser_name="$1"
+    declare -n curr_parser=${parser_name}
+    local args_name="$2"
+    declare -n args="${args_name}"
+    shift 2
+
+    declare -a arg_string
+    local arg_strings=("$@")
+    local new_args=()
+    local fromfile_prefix="${curr_parser[fromfile_prefix_chars]}"
+    for arg_string in "${arg_strings}"; do
+        if [ -z "${arg_string}" ] ||\
+            ! find_in "${arg_string:0:1}" "${fromfile_prefix}"; then
+            new_args+=("${arg_string}")
+        else
+            local args_file="${arg_string:1}"
+            local convert_arg_line_func=${curr_parser[convert_arg_line_func]}
+            local arg_lines arg_line args_from_line arg
+            [ -f "${args_file}" ]
+            assertReturn "${args_file} is not a valid file"
+            readarray -t arg_lines < "${args_file}"
+            for arg_line in "${arg_lines[@]}"; do
+                ${convert_arg_line_func} args_from_line "${arg_line}"
+                declare -a arg_strs
+                _read_args_from_files ${parser_name} arg_strs "${args_from_line[@]}"
+                new_args+=("${arg_strs[@]}")
+            done
+        fi
+    done
+
+    args=("${new_args[@]}")
+}
+
+convert_arg_line_to_args () {
+    # This is the default behavior; one line is one arg
+    declare -n retarr="$1"
+    shift
+    local whole_line="$@"
+    retarr=("${whole_line}")
+}
+
+convert_arg_line_to_multiple_args () {
+    # This splits each line by white space
+    declare -n retarr="$1"
+    shift
+    retarr=("$@")
 }
 
