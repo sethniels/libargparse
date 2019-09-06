@@ -9,33 +9,33 @@ echo "Start of argparseTest"
 
 # prog test
 echo "ArgumentParser prog test"
-ArgumentParser parser --prog="myprogram"
+ArgumentParser parser prog="myprogram"
 print_help parser
 
-ArgumentParser parser --prog='myprogram'
-add_argument parser '--foo' --help='foo of the %(prog) program'
+ArgumentParser parser prog='myprogram'
+add_argument parser '--foo' help='foo of the %(prog) program'
 print_help parser
 
 # usage test
 echo "ArgumentParser usage test"
-ArgumentParser parser --prog='PROG'
-add_argument parser '--foo' --nargs='?' --help='foo help'
-add_argument parser 'bar' --nargs='+' --help='bar help'
+ArgumentParser parser prog='PROG'
+add_argument parser '--foo' nargs='?' help='foo help'
+add_argument parser 'bar' nargs='+' help='bar help'
 print_help parser
 
-ArgumentParser parser --prog='PROG' --usage='%(prog) [options]'
-add_argument parser '--foo' --nargs='?' --help='foo help'
-add_argument parser 'bar' --nargs='+' --help='bar help'
+ArgumentParser parser prog='PROG' usage='%(prog) [options]'
+add_argument parser '--foo' nargs='?' help='foo help'
+add_argument parser 'bar' nargs='+' help='bar help'
 print_help parser
 
 # description test
 echo "ArgumentParser description test"
-ArgumentParser parser --description='A foo that bars'
+ArgumentParser parser description='A foo that bars'
 print_help parser
 
 # epilog test
 echo "ArgumentParser epilog test"
-ArgumentParser parser --description='A foo that bars' --epilog="And that's how you'd foo a bar"
+ArgumentParser parser description='A foo that bars' epilog="And that's how you'd foo a bar"
 print_help parser 
 
 # version test
@@ -43,17 +43,17 @@ print_help parser
 
 # prefix_chars test
 echo "ArgumentParser prefix_chars test"
-ArgumentParser parser --prog='PROG' --prefix_chars='-+'
+ArgumentParser parser prog='PROG' prefix_chars='-+'
 add_argument parser '+f'
 add_argument parser '++bar'
-echo parse_args parser +f X ++bar Y
+parse_args parser args +f X ++bar Y
 echo "Test terminated"; exit 1
 
 # fromfile_prefix_chars test
 echo "ArgumentParser fromfile_prefix_chars test"
 with open('args.txt', 'w') as fp:
     fp.write('-f\nbar'
-. ${argparse} ArgumentParser --fromfile_prefix_chars='@'
+. ${argparse} ArgumentParser fromfile_prefix_chars='@'
 . ${argparse} add_argument '-f'
 echo parser.parse_args(['-f', 'foo', '@args.txt']
 
@@ -61,13 +61,13 @@ echo parser.parse_args(['-f', 'foo', '@args.txt']
 echo "ArgumentParser argument_default test"
 . ${argparse} ArgumentParser argument_default=argparse.SUPPRESS
 . ${argparse} add_argument '--foo'
-. ${argparse} add_argument 'bar', --nargs='?'
+. ${argparse} add_argument 'bar', nargs='?'
 echo parser.parse_args(['--foo', '1', 'BAR']
 echo parser.parse_args([]
 
 # add_help test
-. ${argparse} ArgumentParser --prog='PROG' add_help=False
-. ${argparse} add_argument '--foo', --help='foo help'
+. ${argparse} ArgumentParser prog='PROG' add_help=False
+. ${argparse} add_argument '--foo', help='foo help'
 . ${argparse} print_help
 
 # ArgumentParser.add_argument params:
@@ -85,7 +85,7 @@ echo parser.parse_args([]
 
 # name or flags test
 echo "add_argument name or flags test"
-. ${argparse} ArgumentParser --prog='PROG'
+. ${argparse} ArgumentParser prog='PROG'
 . ${argparse} add_argument '-f', '--foo'
 . ${argparse} add_argument 'bar'
 echo parser.parse_args(['BAR']
@@ -104,30 +104,30 @@ echo "add_argument action test"
 echo parser.parse_args('--foo 1'.split()
 
 . ${argparse} ArgumentParser 
-. ${argparse} add_argument '--foo', --action='store_const' const=42
+. ${argparse} add_argument '--foo', action='store_const' const=42
 echo parser.parse_args(['--foo']
 
 . ${argparse} ArgumentParser 
-. ${argparse} add_argument '--foo', --action='store_true'
-. ${argparse} add_argument '--bar', --action='store_false'
-. ${argparse} add_argument '--baz', --action='store_false'
+. ${argparse} add_argument '--foo', action='store_true'
+. ${argparse} add_argument '--bar', action='store_false'
+. ${argparse} add_argument '--baz', action='store_false'
 echo parser.parse_args('--foo --bar'.split()
 
 . ${argparse} ArgumentParser 
-. ${argparse} add_argument '--foo', --action='append'
+. ${argparse} add_argument '--foo', action='append'
 echo parser.parse_args('--foo 1 --foo 2'.split()
 
 . ${argparse} ArgumentParser 
-. ${argparse} add_argument '--str', --dest='types', action='append_const' const=str
-. ${argparse} add_argument '--int', --dest='types', action='append_const' const=int
+. ${argparse} add_argument '--str', dest='types', action='append_const' const=str
+. ${argparse} add_argument '--int', dest='types', action='append_const' const=int
 echo parser.parse_args('--str --int'.split()
 
 . ${argparse} ArgumentParser 
-. ${argparse} add_argument '--verbose', '-v', --action='count'
+. ${argparse} add_argument '--verbose', '-v', action='count'
 echo parser.parse_args(['-vvv']
 
-. ${argparse} ArgumentParser --prog='PROG'
-. ${argparse} add_argument '--version', --action='version' --version='%(prog)s 2.0'
+. ${argparse} ArgumentParser prog='PROG'
+. ${argparse} add_argument '--version', action='version' --version='%(prog)s 2.0'
 try:
     echo parser.parse_args(['--version']
 except BaseException as exc:
@@ -141,8 +141,8 @@ echo "add_argument nargs test"
 echo parser.parse_args('c --foo a b'.split()
 
 . ${argparse} ArgumentParser 
-. ${argparse} add_argument '--foo', --nargs='?', --const='c' default='d'
-. ${argparse} add_argument 'bar', --nargs='?' --default='d'
+. ${argparse} add_argument '--foo', nargs='?', const='c' default='d'
+. ${argparse} add_argument 'bar', nargs='?' default='d'
 echo parser.parse_args(['XX', '--foo', 'YY']
 echo parser.parse_args(['XX', '--foo']
 echo parser.parse_args([]
@@ -150,28 +150,28 @@ echo parser.parse_args([]
 . ${argparse} ArgumentParser 
 with open('input.txt', 'w') as fout:
     fout.write("this is input.txt\n"
-. ${argparse} add_argument 'infile', --nargs='?' type=argparse.FileType('r'),
+. ${argparse} add_argument 'infile', nargs='?' type=argparse.FileType('r'),
         default=sys.stdin
-. ${argparse} add_argument 'outfile', --nargs='?' type=argparse.FileType('w'),
+. ${argparse} add_argument 'outfile', nargs='?' type=argparse.FileType('w'),
         default=sys.stdout
 echo parser.parse_args(['input.txt', 'output.txt']
 echo parser.parse_args([]
 
 . ${argparse} ArgumentParser 
-. ${argparse} add_argument '--foo', --nargs='*'
-. ${argparse} add_argument '--bar', --nargs='*'
-. ${argparse} add_argument 'baz', --nargs='*'
+. ${argparse} add_argument '--foo', nargs='*'
+. ${argparse} add_argument '--bar', nargs='*'
+. ${argparse} add_argument 'baz', nargs='*'
 echo parser.parse_args('a b --foo x y --bar 1 2'.split()
 
-. ${argparse} ArgumentParser --prog='PROG'
-. ${argparse} add_argument 'foo', --nargs='+'
+. ${argparse} ArgumentParser prog='PROG'
+. ${argparse} add_argument 'foo', nargs='+'
 echo parser.parse_args(['a', 'b']
 try:
     echo parser.parse_args([]
 except BaseException as exc:
     echo "%r" % exc
 
-. ${argparse} ArgumentParser --prog='PROG'
+. ${argparse} ArgumentParser prog='PROG'
 . ${argparse} add_argument '--foo'
 . ${argparse} add_argument 'command'
 . ${argparse} add_argument 'args', nargs=argparse.REMAINDER
@@ -188,12 +188,12 @@ echo parser.parse_args(['--foo', '2']
 echo parser.parse_args([]
 
 . ${argparse} ArgumentParser 
-. ${argparse} add_argument '--length', --default='10' type=int
+. ${argparse} add_argument '--length', default='10' type=int
 . ${argparse} add_argument '--width', default=10.5, type=int
 echo parser.parse_args(
 
 . ${argparse} ArgumentParser 
-. ${argparse} add_argument 'foo', --nargs='?' default=42
+. ${argparse} add_argument 'foo', nargs='?' default=42
 echo parser.parse_args(['a']
 echo parser.parse_args([]
 
@@ -223,7 +223,7 @@ def perfect_square(string):
         raise argparse.ArgumentTypeError(msg
     return value
 
-. ${argparse} ArgumentParser --prog='PROG'
+. ${argparse} ArgumentParser prog='PROG'
 . ${argparse} add_argument 'foo', type=perfect_square
 echo parser.parse_args(['9']
 try:
@@ -231,7 +231,7 @@ try:
 except BaseException as exc:
     echo "%r" % exc
 
-. ${argparse} ArgumentParser --prog='PROG'
+. ${argparse} ArgumentParser prog='PROG'
 . ${argparse} add_argument 'foo', type=int, choices=range(5, 10)
 echo parser.parse_args(['7']
 try:
@@ -241,7 +241,7 @@ except BaseException as exc:
 
 # choices test
 echo "add_argument choices test"
-. ${argparse} ArgumentParser --prog='game.py'
+. ${argparse} ArgumentParser prog='game.py'
 . ${argparse} add_argument 'move', choices=['rock', 'paper', 'scissors']
 echo parser.parse_args(['rock']
 try:
@@ -249,7 +249,7 @@ try:
 except BaseException as exc:
     echo "%r" % exc
 
-. ${argparse} ArgumentParser --prog='doors.py'
+. ${argparse} ArgumentParser prog='doors.py'
 . ${argparse} add_argument 'door', type=int, choices=range(1, 4)
 echo(parser.parse_args(['3'])
 try:
@@ -269,22 +269,22 @@ except BaseException as exc:
 
 # help test
 echo "add_argument help test"
-. ${argparse} ArgumentParser --prog='frobble'
-. ${argparse} add_argument '--foo', --action='store_true'
- --help='foo the bars before frobbling'
-. ${argparse} add_argument 'bar', --nargs='+'
- --help='one of the bars to be frobbled'
+. ${argparse} ArgumentParser prog='frobble'
+. ${argparse} add_argument '--foo', action='store_true'
+ help='foo the bars before frobbling'
+. ${argparse} add_argument 'bar', nargs='+'
+ help='one of the bars to be frobbled'
 try:
     echo parser.parse_args(['-h']
 except BaseException as exc:
     echo "%r" % exc
 
-. ${argparse} ArgumentParser --prog='frobble'
-. ${argparse} add_argument 'bar', --nargs='?' type=int, default=42,
- --help='the bar to %(prog)s (default: %(default)s)'
+. ${argparse} ArgumentParser prog='frobble'
+. ${argparse} add_argument 'bar', nargs='?' type=int, default=42,
+ help='the bar to %(prog)s (default: %(default)s)'
 . ${argparse} print_help
 
-. ${argparse} ArgumentParser --prog='frobble'
+. ${argparse} ArgumentParser prog='frobble'
 . ${argparse} add_argument '--foo', help=argparse.SUPPRESS
 . ${argparse} print_help
 
